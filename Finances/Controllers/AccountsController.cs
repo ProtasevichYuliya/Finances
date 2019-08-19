@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Finances.ApiModels;
 using Finances.Data;
@@ -120,8 +121,8 @@ namespace Finances.Controllers
             return account.Balance;
         }
 
-        //PUT: api/accounts/5/deposit
-        [HttpPut("{id}/deposit")]
+        //POST: api/accounts/5/deposit
+        [HttpPost("{id}/deposit")]
         public async Task<ActionResult> Deposit(int id, [FromBody] decimal sum)
         {
             var account = await this.context.Accounts
@@ -131,18 +132,28 @@ namespace Finances.Controllers
                 return NotFound();
             }
 
-            if (sum > 0)
-            { 
-                account.Balance += sum;
-                await context.SaveChangesAsync();
-                return NoContent();
+            if (sum <= 0)
+            {
+                return BadRequest("Deposited sum must be more than zero!");
             }
 
-            return BadRequest("Deposited sum must be more than zero!");
+            while (true)
+            {
+                try
+                {
+                    account.Balance += sum;
+                    await context.SaveChangesAsync();
+                    return NoContent();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    await this.context.Entry(account).ReloadAsync();
+                }
+            }
         }
 
-        //PUT: api/accounts/5/withdraw
-        [HttpPut("{id}/withdraw")]
+        //POST: api/accounts/5/withdraw
+        [HttpPost("{id}/withdraw")]
         public async Task<ActionResult> Withdraw(int id, [FromBody] decimal sum)
         {
             var account = await this.context.Accounts
@@ -152,14 +163,30 @@ namespace Finances.Controllers
                 return NotFound();
             }
 
-            if (sum <= account.Balance)
+            if (sum <= 0)
             {
-                account.Balance -= sum;
-                await context.SaveChangesAsync();
-                return NoContent();
+                return BadRequest("Withdrawal sum must be more than zero!");
             }
 
-            return BadRequest("You do not have enough money on your account to withdraw requested sum!");
+            while (true)
+            {
+                try
+                {
+                    if (sum > account.Balance)
+                    {
+                        return BadRequest("You do not have enough money on your account to withdraw requested sum!");
+                    }
+
+                    account.Balance -= sum;
+                    await context.SaveChangesAsync();
+                    return NoContent();
+
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    await this.context.Entry(account).ReloadAsync();
+                }
+            }
         }
     }
 }

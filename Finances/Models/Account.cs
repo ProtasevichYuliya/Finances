@@ -24,5 +24,8 @@ namespace Finances.Models
         public DateTime? BirthDate { get; set; }
 
         public decimal Balance { get; set; } = 0.0m;
+
+        [Timestamp]
+        public byte[] Timestamp { get; set; }
     }
 }
